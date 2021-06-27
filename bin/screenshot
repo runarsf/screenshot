@@ -235,6 +235,8 @@ main () {
   # TODO: Record all screens (voluntarily)
   # TODO: Record with sound
   # TODO: [stop] feedback (did it stop, did it fail, did it run)
+  # TODO: Add configurable post-procedures (array of enabled procedures)
+  # TODO: xdg-open the file?
   EXTENSION=""
   case "${CHOICE}" in
     '  [PNG] Region') EXTENSION=".png" # {{{
@@ -303,15 +305,18 @@ main () {
 
   # Post-procedure: Clipboard
   # TODO: Consider making this a file object from the File procedure, or the tmpfile
-  #xclip -selection clipboard -t image/png "${tmpfile}"
-  #notify-send "Screenshot" "${CHOICE} copied to Clipboard" -t 1500
+  set +o errexit
+  xclip -selection clipboard -t image/png "${tmpfile}" \
+    && notify-send "Screenshot" "${CHOICE} copied to Clipboard" -t 1500
+  set -o errexit
 
   # TODO: Post-procedure: Sharenix upload
-  # sharenix -n -c
+  sharenix -n -c "$(realpath "${SCREENSHOT_DIRECTORY}/Screenshot-${NOW}${EXTENSION}")"
+
 
   # Finish
   rm "${tmpfile}"
 }
-main
+main &
 
 exit 0
