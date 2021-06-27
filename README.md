@@ -1,6 +1,6 @@
 # screenshot
 
-You can take screenshot and recordings with it.
+You can take screenshots and recordings with it. In different formats.
 It's integrated with rofi.
 What more do you want.
 
