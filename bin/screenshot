@@ -129,6 +129,7 @@ check_deps () { # <dependencies:@string> -> Void {{{
   done
   if test -n "${_missing}"; then
     printf "Missing required dependencies:${_missing}\n"
+    exit 1
   fi
 } # }}}
 
@@ -140,11 +141,11 @@ video_to_gif () { # <tmpfile_basename:path> -> Void {{{
   ffmpeg -i "${1}.mp4" -vf palettegen -f image2 -c:v png - |
   ffmpeg -i "${1}.mp4" -i - -filter_complex paletteuse "${1}.gif"
   rm "${1}.mp4"
-  mv "${1}.gif" "${1}"
 } #  }}}
 
 # Argument parsing {{{
-capture_mode="selection"
+CAPTURE_FORMAT='  [PNG] '
+CAPTURE_MODE=""; OPEN_COMMAND=""; COPY_FILE=""; SAVE_FILE=""
 positional=()
 while test "${#}" -gt "0"; do
   case "${1}" in
@@ -152,18 +153,24 @@ while test "${#}" -gt "0"; do
       usage
       exit 0
       shift;; # }}}
-    -m|--monitor) # {{{
-      capture_mode="monitor"
-      shift;; # }}}
     -w|--window) # {{{
-      capture_mode="window"
+      CAPTURE_MODE="Window"
       shift;; # }}}
-    -s|--selection) # {{{
-      capture_mode="selection"
+    -r|--region) # {{{
+      CAPTURE_MODE="Region"
+      shift;; # }}}
+    -s|--screen) # {{{
+      CAPTURE_MODE="Screen"
+      shift;; # }}}
+    -o|--open) # {{{
+      OPEN_COMMAND="${2}"
       shift;shift;; # }}}
-    -c|--countdown) # {{{
-      COUNTDOWN="${2}"
-      shift;shift;; # }}}
+    -c|--copy) # {{{
+      COPY_FILE="true"
+      shift;; # }}}
+    -f|--file) # {{{
+      SAVE_FILE="true"
+      shift;; # }}}
     --*) # {{{
       printf "Unknown option: ${1}\n"
       exit 1
@@ -198,125 +205,110 @@ if test ! -d "${SCREENSHOT_DIRECTORY}"; then
 fi
 
 main () {
-  CHOICE="$( printf "${CAPTURE_MODES}" | rofi -lines "${LINES}" -dmenu -i -fuzzy -p "Screenshot" )"
+  # If the capture mode isn't set by an argument (format for detection is [CAPTURE_MODE][CAPTURE_FORMAT]), then prompt user for it...
+  if test -z "${CAPTURE_MODE}"; then
+    CAPTURE_MODE="$( printf "${CAPTURE_MODES}" | rofi -lines "${LINES}" -dmenu -i -fuzzy -p "Screenshot" )"
+    CAPTURE_FORMAT=""
+  fi
 
-  # Temporary file handling {{{
-  # TODO: Consider using `mktemp --dry-run` so the file doesn't have to be deleted
-  # create temporary file
-  tmpfile="$(mktemp /tmp/screenshot-XXXXXX)"
-
-  # create file descriptor 3 for writing to a temporary file so that
-  # echo ... >&3 writes to that file
-  exec 3>"${tmpfile}"
-
-  # create file descriptor 4 for reading from the same file so that
-  # the file seek positions for reading and writing can be different
-  exec 4<"${tmpfile}"
-
-  # delete temp file; the directory entry is deleted at once; the reference counter
-  # of the inode is decremented only after the file descriptor has been closed.
-  # The file content blocks are deallocated (this is the real deletion) when the
-  # reference counter drops to zero.
-  rm "${tmpfile}"
-
-  # close the file descriptor
-  trap "exec 3>-" RETURN
-  # }}}
-
+  tmpfile_base="$(mktemp /tmp/screenshot-XXXXXX)"
   NOW="$(date '+%d-%m-%Y-%H:%M:%S')"
 
-  # FIXME: Why use slop when `ffcast -s` exists?
-  #        The selection looks better I guess... auto select window?
-  #        Does that mean window is unnecessary?
-  # TODO: Consider using ffmpeg + slop for recording, see: slop readme
-  # TODO: Cooldown for screenshot as well?
-  # TODO: rofi menu for screen selection (active monitor and --argument) `ffcast -x list`
-  # TODO: Figure out why countdown "dies"
-  # TODO: Record all screens (voluntarily)
-  # TODO: Record with sound
-  # TODO: [stop] feedback (did it stop, did it fail, did it run)
-  # TODO: Add configurable post-procedures (array of enabled procedures)
-  # TODO: xdg-open the file?
   EXTENSION=""
-  case "${CHOICE}" in
+  tmpfile=""
+  case "${CAPTURE_FORMAT}${CAPTURE_MODE}" in
     '  [PNG] Region') EXTENSION=".png" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a region to capture" -t 2500
-      ffcast -q "$(slop -n -f '-g %g ')" png "${tmpfile}"
+      _geospec="$(slop -n -f '-g %g ')"
+      ffcast -q "${_geospec}" png "${tmpfile}"
       ;; # }}}
     '  [PNG] Screen') EXTENSION=".png" # {{{
-      # FIXME: Captures all screens
+      tmpfile="${tmpfile_base}${EXTENSION}"
       ffcast -q png "${tmpfile}"
       ;; # }}}
     '  [PNG] Window') EXTENSION=".png" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a window to capture" -t 2500
       ffcast -w -q png "${tmpfile}"
       ;; # }}}
     '  [GIF] Region') EXTENSION=".gif" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a region to record" -t 2500
+      _geospec="$(slop -n -f '-g %g ' && countdown)"
       set +o errexit
-      ffcast -q "$(slop -n -f '-g %g ' && countdown)" rec "${tmpfile}.mp4"
+      ffcast -q "${_geospec}" rec "${tmpfile_base}.mp4"
       set -o errexit
       notify-send "Screenshot" "Converting to GIF...\n(this can take a while)" -t 2500
-      video_to_gif "${tmpfile}"
+      video_to_gif "${tmpfile_base}"
       ;; # }}}
     '  [GIF] Screen') EXTENSION=".gif" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       set +o errexit
       countdown
-      ffcast -q rec "${tmpfile}.mp4"
+      ffcast -q rec "${tmpfile_base}.mp4"
       set -o errexit
       notify-send "Screenshot" "Converting to GIF...\n(this can take a while)" -t 2500
-      video_to_gif "${tmpfile}"
+      video_to_gif "${tmpfile_base}"
       ;; # }}}
     '  [GIF] Window') EXTENSION=".gif" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a window to record" -t 2500
+      _geospec="$(ffcast -q -w && countdown)"
       set +o errexit
-      ffcast -q -g "$(ffcast -q -w && countdown)" rec "${tmpfile}.mp4"
+      ffcast -q -g "${_geospec}" rec "${tmpfile_base}.mp4"
       set -o errexit
       notify-send "Screenshot" "Converting to GIF...\n(this can take a while)" -t 2500
-      video_to_gif "${tmpfile}"
+      video_to_gif "${tmpfile_base}"
       ;; # }}}
     '  [MP4] Region') EXTENSION=".mp4" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a region to record" -t 2500
+      _geospec="$(slop -n -f '-g %g ' && countdown)"
       set +o errexit
-      ffcast -q "$(slop -n -f '-g %g ' && countdown)" rec "${tmpfile}.mp4"
+      ffcast -q "${_geospec}" rec "${tmpfile}"
       set -o errexit
-      mv "${tmpfile}.mp4" "${tmpfile}"
       ;; # }}}
     '  [MP4] Screen') EXTENSION=".mp4" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       set +o errexit
       countdown
-      ffcast -q rec "${tmpfile}.mp4"
+      ffcast -q rec "${tmpfile}"
       set -o errexit
-      mv "${tmpfile}.mp4" "${tmpfile}"
       ;; # }}}
     '  [MP4] Window') EXTENSION=".mp4" # {{{
+      tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a window to record" -t 2500
+      _geospec="$(ffcast -q -w && countdown)"
       set +o errexit
-      ffcast -q -g "$(ffcast -q -w && countdown)" rec "${tmpfile}.mp4"
+      ffcast -q -g "${_geospec}" rec "${tmpfile}"
       set -o errexit
-      mv "${tmpfile}.mp4" "${tmpfile}"
       ;; # }}}
-    *) exit 1;;
+    *) printf "Unknown capture mode '${CAPTURE_FORMAT}${CAPTURE_MODE}'...\n"; exit 1;;
   esac
 
-  # Post-procedure: File
-  cp "${tmpfile}" "$(realpath "${SCREENSHOT_DIRECTORY}/Screenshot-${NOW}${EXTENSION}")"
-  notify-send "Screenshot" "${CHOICE} saved to ${SCREENSHOT_DIRECTORY}" -t 1500
+  if test -n "${SAVE_FILE}"; then
+    SAVED_FILE="$(realpath "${SCREENSHOT_DIRECTORY}/Screenshot-${NOW}${EXTENSION}")"
+    cp "${tmpfile}" "${SAVED_FILE}"
+    notify-send "Screenshot" "${CAPTURE_FORMAT}saved to ${SCREENSHOT_DIRECTORY}" -t 2500
+  else
+    notify-send "Screenshot" "${CAPTURE_FORMAT}saved to ${tmpfile}" -t 3000
+  fi
 
-  # Post-procedure: Clipboard
-  # TODO: Consider making this a file object from the File procedure, or the tmpfile
-  set +o errexit
-  xclip -selection clipboard -t image/png "${tmpfile}" \
-    && notify-send "Screenshot" "${CHOICE} copied to Clipboard" -t 1500
-  set -o errexit
+  if test -n "${COPY_FILE}"; then
+    set +o errexit
+    xclip -selection clipboard -t image/png "${tmpfile}" \
+      && notify-send "Screenshot" "${CAPTURE_FORMAT} copied to Clipboard" -t 1500
+    set -o errexit
+  fi
 
-  # TODO: Post-procedure: Sharenix upload
-  sharenix -n -c "$(realpath "${SCREENSHOT_DIRECTORY}/Screenshot-${NOW}${EXTENSION}")"
+  if test -n "${OPEN_COMMAND}"; then
+    eval "${OPEN_COMMAND} ${tmpfile}"
+  fi
 
-
-  # Finish
   rm "${tmpfile}"
 }
 main &
 
 exit 0
+

@@ -1,0 +1,31 @@
+-s|--screen (active monitor / all monitors / rofi menu `ffcast -x list`) @flag
+-c|--clipboard (copy image to clipboard) @flag
+-d|--delay (delay before taking picture / video) @flag
+-m|--mouse (show mouse) @flag
+--no-border (hide border in image) @flag
+-f|--file (save file, auto-named when '-', jpg/png) @flag
+--display=DISPLAY (X display to use) @flag
+-w|--window (active window / select window) @flag
+Add example for xdg-open @docs
+Stop feedback - did it stop? did it fail?
+Configurable post-procedures (array)? @q
+Allow sound in video recording
+Figure out why countdown dies (doesn't return 0) @bug
+Why are most ffcast commands in set +e? Could it be related to countdown dying? @q
+Consider using ffmpeg + slop for recording, see: slop readme
+Why use slop when 'ffcast -s' exists? The selection looks better I guess... auto select window? Does that mean window is unnecessary? @q
+Figure out how copying videos work, if it's even possible...
+rofi window fills entire screen at first run (happened on manjaro on two separate computers) (could $LINES be the culprit?) @bug
+custom rofi theme?
+argparse optional keyword to argument (e.g. '--file' doens't *need* a keyword, it should auto-generate a name by default), or just use '-' ('--file -')
+Consistent variable naming (CASE / case / _case) @improvement
+Consider using 'mktemp --dry-run' so the file doesn't have to be deleted
+Show info about how to stop recording when starting one
+Will geospec fail with '&& continue'?
+Screenshot seems to randomly create a file called '-'... @bug
+Document mutually exclusive-ness of -w -r -s
+Help menu / man page @flag
+Consider supressing error 'Failed to detect a compositor, OpenGL hardware-acceleration disabled...'
+-t|--timeout for gif / mp4 recording (stop video after n seconds) @flag
+Instead of a 'stop' command, detect if the script is recording and stop the existing one (like sharex, so you don't need two binds)
+Document examples @docs
