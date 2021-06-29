@@ -171,6 +171,9 @@ while test "${#}" -gt "0"; do
     -f|--file) # {{{
       SAVE_FILE="true"
       shift;; # }}}
+    -d|--display) # {{{
+      export DISPLAY="${2}"
+      shift;shift;;# }}}
     --*) # {{{
       printf "Unknown option: ${1}\n"
       exit 1
