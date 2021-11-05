@@ -6,12 +6,16 @@ if test -z "${DISPLAY}"; then
   exit 1
 fi
 
+# TODO Allow starting recordings from commandline.
+# TODO -x|-y|-w|-h or -s|--size "POSXxPOSYxWIDTHxHEIGHT": specify region proportions and size
+# TODO -r|--region: Grab region from selection so you can pass to -x-y-w-h
+
 # Variables {{{
-CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/.screenshotrc"
+CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
 
 # Change these in $CONFIG (~/.config/.screenshotrc)
 SCREENSHOT_DIRECTORY="${HOME}/Pictures/Screenshots"
-COUNTDOWN="3"
+COUNTDOWN="5"
 
 set -o allexport
 test -f "${CONFIG}" && source "${CONFIG}"
@@ -92,17 +96,32 @@ colours
 
 usage () { # {{{
 	cat <<-EOMAN
-  ${RESET}${C_GREEN}Usage:${RESET} $(basename $(realpath ${0}))  <${C_RED}options${RESET}>  [${C_BLUE}command${RESET}]
+	${RESET}${C_GREEN}Usage:${RESET} $(basename $(realpath ${0}))  <${C_RED}options${RESET} [${C_YELLOW}arguments${RESET}]>  [${C_BLUE}command${RESET}]
 	
 	${C_GREEN}Options:${RESET}
-	  -h, --help                 Display usage menu.
-	  -c, --countdown <${C_RED}seconds${RESET}>  Adjust countdown time.
+	  -h, --help             Display usage menu.
+	  -m, --mode  <${C_RED}mode${RESET}>     Capture mode.
+	              ${C_YELLOW}region${RESET}
+	              ${C_YELLOW}screen${RESET}
+	              ${C_YELLOW}window${RESET}
+	  -o, --open  <${C_RED}program${RESET}>  Pass the filepath of the screenshot to <${C_YELLOW}program${RESET}>.
+	  -c, --copy             Copy the file to the clipboard.
+	  -p, --path             Copy the filepath to the clipboard.
+	  -t, --temp             Save the screenshot to /tmp instead of ${SCREENSHOT_DIRECTORY}
+	  -d, --dir   <${C_RED}dir${RESET}>      Path of screenshots (can also be set in ${CONFIG} as 'SCREENSHOT_DIRECTORY'.)
 	
 	${C_GREEN}Commands:${RESET}
-	  stop                       Stop screen recording (GIF and MP4).
+	  ${C_BLUE}stop${RESET}                  Stop screen recording (GIF and MP4).
 	
 	${C_GREEN}Examples:${RESET}
-	  $(basename $(realpath ${0})) -h${RESET}
+	  $(basename $(realpath ${0})) ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_DGRAY}# Capture a screenshot and save to ${SCREENSHOT_DIRECTORY}${RESET}
+	  ${C_DGRAY}# - Select a region${RESET}
+	  ${C_DGRAY}# - Capture it to a temporary file${RESET}
+	  ${C_DGRAY}# - Copy the path to the clipboard${RESET}
+	  ${C_DGRAY}# - Copy the file to the clipboard${RESET}
+	  ${C_DGRAY}# - Upload it with sharenix -> sharenix copies the URL to the clipboard${RESET}
+	  $(basename $(realpath ${0})) ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_RED}-t${RESET} ${C_RED}-p${RESET} ${C_RED}-c${RESET} ${C_RED}-o${RESET} ${C_YELLOW}'sharenix -n -c'${RESET}
+	  $(basename $(realpath ${0})) ${C_BLUE}stop${RESET} ${C_DGRAY}# Stop recording${RESET}
 	${RESET}
 	EOMAN
 } # }}}
@@ -145,7 +164,7 @@ video_to_gif () { # <tmpfile_basename:path> -> Void {{{
 
 # Argument parsing {{{
 CAPTURE_FORMAT='  [PNG] '
-CAPTURE_MODE=""; OPEN_COMMAND=""; COPY_FILE=""; SAVE_FILE=""
+CAPTURE_MODE=""; OPEN_COMMAND=""; COPY_PATH=""; COPY_FILE=""; SAVE_FILE="true"
 positional=()
 while test "${#}" -gt "0"; do
   case "${1}" in
@@ -153,27 +172,30 @@ while test "${#}" -gt "0"; do
       usage
       exit 0
       shift;; # }}}
-    -w|--window) # {{{
-      CAPTURE_MODE="Window"
-      shift;; # }}}
-    -r|--region) # {{{
-      CAPTURE_MODE="Region"
-      shift;; # }}}
-    -s|--screen) # {{{
-      CAPTURE_MODE="Screen"
-      shift;; # }}}
+    -m|--mode) # {{{
+      CAPTURE_MODE="$(printf ${2} | tr '[:upper:]' '[:lower:]')"
+      case "${CAPTURE_MODE}" in
+        window|region|screen) CAPTURE_MODE="${CAPTURE_MODE^}"; echo hi;;
+        *)
+          printf "Invalid capture mode (see -h)\n";
+          exit 1;;
+      esac
+      shift;shift;; # }}}
     -o|--open) # {{{
       OPEN_COMMAND="${2}"
       shift;shift;; # }}}
     -c|--copy) # {{{
       COPY_FILE="true"
       shift;; # }}}
-    -f|--file) # {{{
-      SAVE_FILE="true"
+    -p|--path) # {{{
+      COPY_PATH="true"
       shift;; # }}}
-    -d|--display) # {{{
-      export DISPLAY="${2}"
-      shift;shift;;# }}}
+    -t|--temp) # {{{
+      SAVE_FILE=""
+      shift;; # }}}
+    -d|--dir) # {{{
+      SCREENSHOT_DIRECTORY="${2}"
+      shift;shift;; # }}}
     --*) # {{{
       printf "Unknown option: ${1}\n"
       exit 1
@@ -238,7 +260,7 @@ main () {
     '  [GIF] Region') EXTENSION=".gif" # {{{
       tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a region to record" -t 2500
-      _geospec="$(slop -n -f '-g %g ' && countdown)"
+      _geospec="$(slop -n -f '-g %g ' && countdown ${COUNTDOWN})"
       set +o errexit
       ffcast -q "${_geospec}" rec "${tmpfile_base}.mp4"
       set -o errexit
@@ -257,7 +279,7 @@ main () {
     '  [GIF] Window') EXTENSION=".gif" # {{{
       tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a window to record" -t 2500
-      _geospec="$(ffcast -q -w && countdown)"
+      _geospec="$(ffcast -q -w && countdown ${COUNTDOWN})"
       set +o errexit
       ffcast -q -g "${_geospec}" rec "${tmpfile_base}.mp4"
       set -o errexit
@@ -267,7 +289,7 @@ main () {
     '  [MP4] Region') EXTENSION=".mp4" # {{{
       tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a region to record" -t 2500
-      _geospec="$(slop -n -f '-g %g ' && countdown)"
+      _geospec="$(slop -n -f '-g %g ' && countdown ${COUNTDOWN})"
       set +o errexit
       ffcast -q "${_geospec}" rec "${tmpfile}"
       set -o errexit
@@ -275,14 +297,14 @@ main () {
     '  [MP4] Screen') EXTENSION=".mp4" # {{{
       tmpfile="${tmpfile_base}${EXTENSION}"
       set +o errexit
-      countdown
+      countdown ${COUNTDOWN}
       ffcast -q rec "${tmpfile}"
       set -o errexit
       ;; # }}}
     '  [MP4] Window') EXTENSION=".mp4" # {{{
       tmpfile="${tmpfile_base}${EXTENSION}"
       notify-send "Screenshot" "Select a window to record" -t 2500
-      _geospec="$(ffcast -q -w && countdown)"
+      _geospec="$(ffcast -q -w && countdown ${COUNTDOWN})"
       set +o errexit
       ffcast -q -g "${_geospec}" rec "${tmpfile}"
       set -o errexit
@@ -294,14 +316,22 @@ main () {
     SAVED_FILE="$(realpath "${SCREENSHOT_DIRECTORY}/Screenshot-${NOW}${EXTENSION}")"
     cp "${tmpfile}" "${SAVED_FILE}"
     notify-send "Screenshot" "${CAPTURE_FORMAT}saved to ${SCREENSHOT_DIRECTORY}" -t 2500
+    printf "${CAPTURE_FORMAT}saved to ${SCREENSHOT_DIRECTORY}\n"
   else
     notify-send "Screenshot" "${CAPTURE_FORMAT}saved to ${tmpfile}" -t 3000
+    printf "Screenshot" "${CAPTURE_FORMAT}saved to ${tmpfile}\n"
   fi
 
+  if test -n "${COPY_PATH}"; then
+    set +o errexit
+    printf "${SAVED_FILE:-${tmpfile}}" | xclip -selection clipboard \
+      && notify-send "Screenshot" "${SAVED_FILE:-${tmpfile}} copied to clipboard" -t 1500
+    set -o errexit
+  fi
   if test -n "${COPY_FILE}"; then
     set +o errexit
     xclip -selection clipboard -t image/png "${tmpfile}" \
-      && notify-send "Screenshot" "${CAPTURE_FORMAT} copied to Clipboard" -t 1500
+      && notify-send "Screenshot" "${CAPTURE_FORMAT} copied to clipboard" -t 1500
     set -o errexit
   fi
 
