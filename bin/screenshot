@@ -111,17 +111,18 @@ usage () { # {{{
 	  -d, --dir   <${C_RED}dir${RESET}>      Path of screenshots (can also be set in ${CONFIG} as 'SCREENSHOT_DIRECTORY'.)
 	
 	${C_GREEN}Commands:${RESET}
-	  ${C_BLUE}stop${RESET}                  Stop screen recording (GIF and MP4).
+	  ${C_BLUE}stop${RESET}                   Stop screen recording (GIF and MP4).
 	
 	${C_GREEN}Examples:${RESET}
+	  $(basename $(realpath ${0})) ${C_DGRAY}# Show interactive menu${RESET}
 	  $(basename $(realpath ${0})) ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_DGRAY}# Capture a screenshot and save to ${SCREENSHOT_DIRECTORY}${RESET}
+	  $(basename $(realpath ${0})) ${C_BLUE}stop${RESET} ${C_DGRAY}# Stop recording${RESET}
 	  ${C_DGRAY}# - Select a region${RESET}
 	  ${C_DGRAY}# - Capture it to a temporary file${RESET}
 	  ${C_DGRAY}# - Copy the path to the clipboard${RESET}
 	  ${C_DGRAY}# - Copy the file to the clipboard${RESET}
 	  ${C_DGRAY}# - Upload it with sharenix -> sharenix copies the URL to the clipboard${RESET}
 	  $(basename $(realpath ${0})) ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_RED}-t${RESET} ${C_RED}-p${RESET} ${C_RED}-c${RESET} ${C_RED}-o${RESET} ${C_YELLOW}'sharenix -n -c'${RESET}
-	  $(basename $(realpath ${0})) ${C_BLUE}stop${RESET} ${C_DGRAY}# Stop recording${RESET}
 	${RESET}
 	EOMAN
 } # }}}
