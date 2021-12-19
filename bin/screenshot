@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if test -z "${DISPLAY}"; then
-  printf "X server doesn't seem to be running....\n"
-  exit 1
-fi
+: "${DISPLAY:?X server doesn\'t seem to be running...}"
 
 # TODO Allow starting recordings from commandline.
 # TODO -x|-y|-w|-h or -s|--size "POSXxPOSYxWIDTHxHEIGHT": specify region proportions and size
 # TODO -r|--region: Grab region from selection so you can pass to -x-y-w-h
+# BUG 'Screenshot' is written to terminal
 
 # Variables {{{
 CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
@@ -117,6 +115,7 @@ usage () { # {{{
 	  $(basename $(realpath ${0})) ${C_DGRAY}# Show interactive menu${RESET}
 	  $(basename $(realpath ${0})) ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_DGRAY}# Capture a screenshot and save to ${SCREENSHOT_DIRECTORY}${RESET}
 	  $(basename $(realpath ${0})) ${C_BLUE}stop${RESET} ${C_DGRAY}# Stop recording${RESET}
+	  $(basename $(realpath ${0})) ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_RED}-t${RESET} ${C_RED}-p${RESET} ${C_RED}-c${RESET} ${C_RED}-o${RESET} ${C_YELLOW}'screenshot-xbackbone'${RESET}
 	  ${C_DGRAY}# - Select a region${RESET}
 	  ${C_DGRAY}# - Capture it to a temporary file${RESET}
 	  ${C_DGRAY}# - Copy the path to the clipboard${RESET}
@@ -176,7 +175,7 @@ while test "${#}" -gt "0"; do
     -m|--mode) # {{{
       CAPTURE_MODE="$(printf ${2} | tr '[:upper:]' '[:lower:]')"
       case "${CAPTURE_MODE}" in
-        window|region|screen) CAPTURE_MODE="${CAPTURE_MODE^}"; echo hi;;
+        window|region|screen) CAPTURE_MODE="${CAPTURE_MODE^}";;
         *)
           printf "Invalid capture mode (see -h)\n";
           exit 1;;

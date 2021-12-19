@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
+
+set -o allexport
+test -f "${CONFIG:?}" && source "${CONFIG}"
+set +o allexport
+: "${XBB_URL:?is a variable that is missing from ${CONFIG}}" # https://xbackbone.domain.tld/upload
+: "${XBB_TOKEN:?is a variable that is missing from ${CONFIG}}" # token_SOMETHING
+XBB_RAW="${XBB_RAW:+/raw}" # boolean
+
+FILE="${1:?is a positional argument that is missing}"; shift
+test -f "${FILE}" || { printf "${FILE} doesn't exists or isn't a file...\n"; exit 1; }
+
+RES="$(curl --silent --form "token=${XBB_TOKEN}" --form "upload=@${FILE}" "${XBB_URL}")"
+RES_URL="$(printf "${RES:?}" | jq .url | cut -d'"' -f2)${XBB_RAW}"
+printf "${RES_URL:?}" | xclip -selection clipboard
+notify-send "Screenshot uploaded to ${XBB_URL}" "${RES_URL}"
