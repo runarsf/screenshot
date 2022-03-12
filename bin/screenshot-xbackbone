@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Add XBB_URL and XBB_TOKEN to the config file (default: ~/.screenshotrc)
+
 CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
 
 set -o allexport
