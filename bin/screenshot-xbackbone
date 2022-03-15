@@ -11,13 +11,13 @@ set -euo pipefail
 #   export XBB_URL="https://i.runarsf.dev/upload"
 #   export XBB_TOKEN="$(pass Screenshot/XBB_TOKEN)"
 
-CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
+XBB_CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
 
 set -o allexport
-test -f "${CONFIG:?}" && source "${CONFIG}"
+test -f "${XBB_CONFIG:?}" && source "${XBB_CONFIG}"
 set +o allexport
-: "${XBB_URL:?is a variable that is missing from ${CONFIG}}" # https://xbackbone.domain.tld/upload
-: "${XBB_TOKEN:?is a variable that is missing from ${CONFIG}}" # token_SOMETHING
+: "${XBB_URL:?is a variable that is missing from ${XBB_CONFIG}}" # https://xbackbone.domain.tld/upload
+: "${XBB_TOKEN:?is a variable that is missing from ${XBB_CONFIG}}" # token_SOMETHING
 XBB_RAW="${XBB_RAW:+/raw}" # boolean
 
 FILE="${1:?is a positional argument that is missing}"; shift
