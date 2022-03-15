@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Add XBB_URL and XBB_TOKEN to the config file (default: ~/.screenshotrc)
+# Either add XBB_URL and XBB_TOKEN to your environment (~/.profile) or to the config file (default: ~/.screenshotrc)
+# To add them to yout environment, consider using `pass` to store the token securely:
+# Generate a gpg key if you don't already have one.
+# $ gpg --list-keys
+# $ pass init [key id]
+# $ pass insert Screenshot/XBB_TOKEN
+# $ vim ~/.profile
+#   export XBB_URL="https://i.runarsf.dev/upload"
+#   export XBB_TOKEN="$(pass Screenshot/XBB_TOKEN)"
 
 CONFIG="${XDG_CONFIG_HOME:-${HOME:-~}/.config}/.screenshotrc"
 
