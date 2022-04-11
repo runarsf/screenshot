@@ -224,7 +224,8 @@ if test "${#}" -gt "0"; then
 fi
 # }}}
 
-check_deps rofi ffcast xclip slop sharenix
+# FIXME ffcast seems to be gone...
+check_deps rofi ffcast xclip slop
 if test ! -d "${SCREENSHOT_DIRECTORY}"; then
   mkdir -p "$(realpath "${SCREENSHOT_DIRECTORY}")"
 fi
