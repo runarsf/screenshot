@@ -3,6 +3,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# FIXME grim: command not found
+#  xclip: /tmp/capture-2023-11-02-19:22:45
+#  -pwVrKS.png: No such file or directory
 # TODO allow default options
 # TODO Cursor
 # TODO rofi
@@ -334,7 +337,7 @@ hook::preview () { # <file_path> {{{
 # }}}
 
 main () { # -> int {{{
-  dependencies=("notify-send" "wf-recorder" "slurp" "ffmpeg")
+  dependencies=("notify-send" "wf-recorder" "slurp" "ffmpeg" "grim" "hyprctl")
   check_dependencies "${dependencies[@]}"
 
   parse_args "${@}"
