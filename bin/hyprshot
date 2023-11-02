@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# TODO allow default options
+# TODO Cursor
+# TODO rofi
+# TODO stop recording automatically
+# TODO support Xorg
+# TODO Exit on fail
+# https://github.com/hyprwm/contrib/blob/main/grimblast/grimblast
+
+# Config {{{
+# Wring custom hooks can be done by defining a function in $CONFIG in the form
+#  `hook::<name> () { ... }`, where <name> is the name of the hook, and the last
+#  positional argument is the path of the screenshot.
+#  You can then use it with the +<hook> option.
+#  You can also open a program directly with the --open option.
+
+HOOKS=()
+TRANSIENT=()
+
+CONFIG="${HOME}/.config/.cumshotrc"
+
+SCREENSHOT_DIR="${HOME}/Pictures/Screenshots"
+COUNTDOWN="5"
+SIMPLE="false"
+
+printf -v date '%(%Y-%m-%d-%H:%M:%S)T\n' -1
+FILENAME_PREFIX="capture-${date}"
+
+COMMAND="capture"
+TARGET="active"
+
+set -o allexport
+test -f "${CONFIG}" && . "${CONFIG}"
+set +o allexport
+# }}}
+
+colors () { # {{{
+  RESET=$'\e[0;39m'
+
+  E_BOLD=$'\e[1m'
+  E_DIM=$'\e[2m'
+  E_UNDERLINE=$'\e[4m'
+  E_BLINK=$'\e[5m'
+  E_INVERT=$'\e[7m'
+  E_HIDDEN=$'\e[8m'
+
+  R_NORMAL=$'\e[0m'
+  R_BOLD=$'\e[21m'
+  R_DIM=$'\e[22m'
+  R_UNDERLINE=$'\e[24m'
+  R_BLINK=$'\e[25m'
+  R_INVERT=$'\e[27m'
+  R_HIDDEN=$'\e[28m'
+
+  C_DEFAULT=$'\e[19m'
+  C_BLACK=$'\e[30m'
+  C_RED=$'\e[31m'
+  C_GREEN=$'\e[32m'
+  C_YELLOW=$'\e[33m'
+  C_BLUE=$'\e[34m'
+  C_MAGENTA=$'\e[35m'
+  C_CYAN=$'\e[36m'
+  C_LGRAY=$'\e[37m'
+  C_DGRAY=$'\e[90m'
+  C_LRED=$'\e[91m'
+  C_LGREEN=$'\e[92m'
+  C_LYELLOW=$'\e[93m'
+  C_LBLUE=$'\e[94m'
+  C_LMAGENTA=$'\e[95m'
+  C_LCYAN=$'\e[96m'
+  C_WHITE=$'\e[97m'
+
+  B_DEFAULT=$'\e[49m'
+  B_BLACK=$'\e[40m'
+  B_RED=$'\e[41m'
+  B_GREEN=$'\e[42m'
+  B_YELLOW=$'\e[43m'
+  B_BLUE=$'\e[44m'
+  B_MAGENTA=$'\e[45m'
+  B_CYAN=$'\e[46m'
+  B_LGRAY=$'\e[47m'
+  B_DGRAY=$'\e[100m'
+  B_LRED=$'\e[101m'
+  B_LGREEN=$'\e[102m'
+  B_LYELLOW=$'\e[103m'
+  B_LBLUE=$'\e[104m'
+  B_LMAGENTA=$'\e[105m'
+  B_LCYAN=$'\e[106m'
+  B_WHITE=$'\e[106m'
+}
+# }}}
+
+usage () { # {{{
+  test "${SIMPLE}" = "false" && colors
+  set +o nounset
+  scriptname="$(basename $(realpath "${0}"))"
+	cat <<-EOMAN
+	${RESET}${C_GREEN}Usage:${RESET} ${scriptname}  <${C_RED}options${RESET} [${C_YELLOW}argumments${RESET}]>  <${C_BLUE}command${RESET}>  <${C_BLUE}target${RESET}>
+	
+	${C_GREEN}Options:${RESET}
+	  -h, --help            Display usage menu.
+	  -t, --temp            Save the screenshot to /tmp instead of ${SCREENSHOT_DIR}
+	  -w, --wait     <${C_YELLOW}sec${RESET}>  Wait for the specified number of seconds before capturing.
+	  -d, --dir      <${C_YELLOW}dir${RESET}>  Path of screenshots directory.
+	  -f, --filename <${C_YELLOW}str${RESET}>  Filename-prefix of the screenshot. Use repeating X's to generate a random string.
+	  -o, --open     <${C_YELLOW}cmd${RESET}>  Open the screenshot with the specified program.
+	  -c, --copy            Copy the file to the clipboard.
+	  -s, --save            Save the screenshot to ${SCREENSHOT_DIR} instead of /tmp
+	  -e, --explore         Reveal the screenshot in the file manager.
+	  -p, --preview         Open the screenshot with the default image viewer.
+	  --debug               Shows execution trace.
+	  --simple              Disables colors in output.
+	  +${C_RED}...${RESET}                  A custom hook.
+	  --                    Stop parsing options, and pass the rest to the command.
+	
+	${C_GREEN}Commands:${RESET}
+	  ${C_BLUE}capture${RESET}               Capture a screenshot.
+	  ${C_BLUE}record${RESET}                Capture a video.
+	  ${C_BLUE}gif${RESET}                   Capture a gif.
+	
+	${C_GREEN}Targets:${RESET}
+	  ${C_BLUE}region${RESET}                Select a region to capture from.
+	  ${C_BLUE}screen${RESET}                Capture the entire screen.
+	  ${C_BLUE}active${RESET}                Capture the active window.
+	
+	${C_GREEN}Examples:${RESET}
+	  ${scriptname} ${C_DGRAY}# Show interactive menu${RESET}
+	  ${scriptname} ${C_BLUE}capture${RESET} ${C_BLUE}region${RESET} ${C_DGRAY}# Select a region to capture${RESET}
+	  ${scriptname} ${C_BLUE}stop${RESET} ${C_DGRAY}# Stop recording${RESET}
+	  ${scriptname} ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_RED}-t${RESET} ${C_RED}-p${RESET} ${C_RED}-c${RESET} ${C_RED}-o${RESET} ${C_YELLOW}'screenshot-xbackbone'${RESET}
+	  ${scriptname} ${C_RED}-m${RESET} ${C_YELLOW}region${RESET} ${C_RED}-t${RESET} ${C_RED}-p${RESET} ${C_RED}-c${RESET} ${C_RED}-o${RESET} ${C_YELLOW}'sharenix -n -c'${RESET}
+	${RESET}
+	EOMAN
+  set -o nounset
+} # }}}
+
+check_dependencies () { # dependencies:string[] -> void {{{
+  dependencies=("${@}")
+  missing=()
+
+  for dependency in "${dependencies[@]}"; do
+    if ! hash "${dependency}" 2>/dev/null; then
+      missing+="${dependency}"
+    fi
+  done
+
+  if test "${#missing[@]}" -gt "0"; then
+    printf 'Missing dependencies: %s\n' "${missing[@]}"
+    exit 1
+  fi
+} # }}}
+
+parse_args () { # -> {{{
+  if test "${#}" -eq "0"; then
+    usage
+    exit 0
+  fi
+  while test "${#}" -gt "0"; do
+    case "${1}" in
+      capture|gif|record) # {{{
+        COMMAND="${1}"
+        shift;;
+      # }}}
+      region|screen|active) # {{{
+        TARGET="${1}"
+        shift;;
+      # }}}
+      -h|--help) # {{{
+        usage
+        exit 0;;
+      # }}}
+      -s|--save) # {{{
+        HOOKS+=("save")
+        shift;;
+      # }}}
+      -t|--temp) # {{{
+        HOOKS=( "${HOOKS[@]/save}" )
+        shift;;
+      # }}}
+      -c|--copy) # {{{
+        HOOKS+=("copy")
+        shift;;
+      # }}}
+      -o|--open) # {{{
+        case "${2:?Error: --open requires a command}" in
+          -*|--*) printf 'Error: --open requires a command\n'; exit 1;;
+        esac
+        HOOKS+=("open ${2}")
+        shift;shift;;
+      # }}}
+      -f|--filename) # {{{
+        case "${2:?Error: --filename requires a template string}" in
+          -*|--*) printf 'Error: --filename requires a template string\n'; exit 1;;
+        esac
+        FILENAME_PREFIX="${2}"
+        shift;shift;;
+      # }}}
+      -e|--explore) # {{{
+        HOOKS+=("explore")
+        shift;;
+      # }}}
+      -p|--preview) # {{{
+        HOOKS+=("preview")
+        shift;;
+      # }}}
+      -w|--wait) # {{{
+        COUNTDOWN="${2:?Error: --wait requires a number}"
+        shift;shift;;
+      # }}}
+      -d|--dir) # {{{
+        SCREENSHOT_DIR="${2:?Error: --dir requires a path}"
+        shift;shift;;
+      # }}}
+      --debug) # {{{
+        set -o xtrace
+        shift;;
+      # }}}
+      --simple) # {{{
+        SIMPLE="true"
+        shift;;
+      # }}}
+      +*) # {{{
+        HOOKS+=("${1:1}")
+        shift;;
+      # }}}
+      --) # {{{
+        shift
+        TRANSIENT=("${@}")
+        break;;
+      # }}}
+      --*) # {{{
+        printf 'Unknown option: %s\n' "${1}"
+        exit 1;;
+      # }}}
+      -*) # {{{
+        opt="${1}"
+        if test "${#opt}" -le "2"; then
+          printf 'Unknown option: %s\n' "${opt}"
+          exit 1
+        fi
+        shift
+        set -- "${opt:0:2}" "-${opt:2}" "${@}";;
+      # }}}
+      *) # {{{
+        printf 'Unknown command: %s\n' "${1}"
+        exit 1;;
+      # }}}
+    esac
+  done
+} # }}}
+
+generate_descriptors () { # <file_name> -> <file_path> {{{z
+  filename="${1%.*}-XXXXXX.${1##*.}"
+  tmpfile="$(mktemp "/tmp/${filename}")"
+
+  rm -f "${tmpfile}"
+
+  printf '%s\n' "${tmpfile}"
+} # }}}
+
+# Selectors {{{
+select::active () { # {{{
+  hyprctl -j activewindow | jq -r '"\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
+} # }}}
+
+select::region () { # {{{
+  slurp
+} # }}}
+
+select::screen () { # {{{
+  hyprctl -j monitors | jq -r '.[] | select(.focused) | "\(.x),\(.y) \(.width)x\(.height)"'
+} # }}}
+# }}}
+
+# Commands {{{
+cmd::capture () { # <geospec> <**transient> {{{
+  filename="$(generate_descriptors "${FILENAME_PREFIX}.png")"
+  grim -g "${1}" ${2:-} -t png "${filename}"
+  printf '%s\n' "${filename}"
+} # }}}
+
+cmd::record () { # <geospec> <**transient> {{{
+  filename="$(generate_descriptors "${FILENAME_PREFIX}.mp4")"
+  wf-recorder --geometry "${1}" ${2:-} -f "${filename}" & >/dev/null 2>&1
+  printf '%s\n' "${filename}"
+} # }}}
+
+# cmd::gif () { # <geospec> <**transient> {{{
+#   # TODO this should cmd::record
+#   filename="$(generate_descriptors capture.gif)"
+#   wf-recorder -g "${1}" "${filename}"
+#   printf '%s\n' "${filename}"
+
+#ffmpeg -i "${1}.mp4" -vf palettegen -f image2 -c:v png - |
+#  ffmpeg -i "${1}.mp4" -i - -filter_complex paletteuse "${1}.gif"
+#  rm "${1}.mp4"
+# } # }}}
+# }}}
+
+# Hooks {{{
+hook::copy () { # <file_path> {{{
+  xclip -selection clipboard -t image/png -i "${1}"
+} # }}}
+
+hook::save () { # <file_path> {{{
+  mkdir -p "${SCREENSHOT_DIR}"
+  cp "${1}" "${SCREENSHOT_DIR}"
+} # }}}
+
+hook::open () { # <command> <file_path> {{{
+  ${1} "${2}"
+} # }}}
+
+hook::explore () { # <file_path> {{{
+  dbus-send \
+    --session \
+    --print-reply \
+    --dest=org.freedesktop.FileManager1 \
+    --type=method_call \
+    /org/freedesktop/FileManager1 \
+    org.freedesktop.FileManager1.ShowItems \
+    array:string:"file://$(realpath "${2}")" \
+    string:"" \
+  || xdg-open "$(dirname "${2}")"
+} # }}}
+
+hook::preview () { # <file_path> {{{
+  xdg-open "${2}"
+} # }}}
+# }}}
+
+main () { # -> int {{{
+  dependencies=("notify-send" "wf-recorder" "slurp" "ffmpeg")
+  check_dependencies "${dependencies[@]}"
+
+  parse_args "${@}"
+
+  geospec="$(select::${TARGET})"
+
+  if declare -f -F "cmd::${COMMAND}" > /dev/null; then
+    filename="$(cmd::${COMMAND} "${geospec}" "${TRANSIENT[@]}")"
+  else
+    printf 'Undefined command %s\n' "${COMMAND}"
+    return 1
+  fi
+
+  for hook in "${HOOKS[@]}"; do
+    hook_arr=(${hook})
+    if declare -f -F "hook::${hook_arr[0]}" > /dev/null; then
+      hook::${hook} "${filename:?Error: attempted to execute hook on a non-existent capture}"
+    else
+      printf 'Undefined hook %s\n' "${hook}"
+    fi
+  done
+} # }}}
+
+main "${@}"
+exit "${?}"
