@@ -3,6 +3,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# TODO # read -r X Y W H G ID < <(slop -f "%x %y %w %h %g %i")
 # FIXME grim: command not found
 #  xclip: /tmp/capture-2023-11-02-19:22:45
 #  -pwVrKS.png: No such file or directory
