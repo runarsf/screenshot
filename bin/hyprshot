@@ -5,14 +5,18 @@ set -o pipefail
 set -o posix
 
 # TODO # read -r X Y W H G ID < <(slop -f "%x %y %w %h %g %i")
+# TODO only depend on wofi if interactive
 # FIXME grim: command not found
 #  xclip: /tmp/capture-2023-11-02-19:22:45
 #  -pwVrKS.png: No such file or directory
 # TODO replace notifications instead of adding new ones
 # TODO allow default options
 # TODO Cursor - could also be an example of passthrough
-# TODO rofi
 # TODO stop recording automatically
+#    if test "${1}" = "stop"; then
+#    pkill -fxn '(/\S+)*ffmpeg\s.*\sx11grab\s.*'
+#    exit 0
+#  fi
 # TODO support Xorg
 # TODO Exit on fail
 # https://github.com/hyprwm/contrib/blob/main/grimblast/grimblast
@@ -155,6 +159,34 @@ check_dependencies () { # dependencies:string[] -> void {{{
   fi
 } # }}}
 
+# FIXME if this is cacelled, it still continues
+interactive_prompt() { # -> params {{{
+  declare capture_mode
+  set +o errexit
+	read -r -d '' capture_modes <<-'EOMODES'
+	  [PNG] Region
+	  [PNG] Screen
+	  [PNG] Window
+	  [GIF] Region
+	  [GIF] Screen
+	  [GIF] Window
+	  [MP4] Region
+	  [MP4] Screen
+	  [MP4] Window
+	EOMODES
+  set -o errexit
+  declare -r capture_mode_lines="$(( $(printf '%s' "${capture_modes}" | wc -l) + 1 ))"
+  declare -r capture_mode="$(printf '%s\n' "${capture_modes}" | wofi --lines "${capture_mode_lines}" --insensitive --dmenu --matching='fuzzy' --prompt='Select action')"
+
+  case "${capture_mode}" in
+    *GIF*) printf 'gif';;
+    *MP4*) printf 'record';;
+    *PNG*) printf 'capture';;
+  esac
+  declare -r target="$(printf '%s\n' "${capture_mode}" | awk '{printf $3}')"
+  printf ' %s\n' "${target,,}"
+} # }}}
+
 parse_args () { # -> {{{
   if test "${#}" -eq "0"; then
     usage
@@ -211,6 +243,11 @@ parse_args () { # -> {{{
       -x|--xdg) # {{{
         HOOKS+=("xdg")
         shift;;
+      # }}}
+      -i|--interactive) # {{{
+        opts="$(interactive_prompt)"
+        shift
+        set -- ${opts} "${@}";;
       # }}}
       -w|--wait) # {{{
         COUNTDOWN="${2:?Error: --wait requires a number}"
@@ -374,7 +411,7 @@ hook__xdg () { # <filepath> {{{
 # }}}
 
 main () { # -> int {{{
-  declare -ra dependencies=("notify-send" "wf-recorder" "slurp" "ffmpeg" "grim" "hyprctl")
+  declare -ra dependencies=("notify-send" "wf-recorder" "slurp" "ffmpeg" "grim" "hyprctl" "wofi")
   check_dependencies "${dependencies[@]}"
 
   parse_args "${@}"
