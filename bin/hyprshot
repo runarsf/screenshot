@@ -5,7 +5,6 @@ set -o pipefail
 set -o posix
 
 # TODO # read -r X Y W H G ID < <(slop -f "%x %y %w %h %g %i")
-# TODO xclip to wl-clip
 # FIXME grim: command not found
 #  xclip: /tmp/capture-2023-11-02-19:22:45
 #  -pwVrKS.png: No such file or directory
@@ -322,28 +321,28 @@ cmd__gif () { # <geospec> <**transient> -> <filename> {{{
 
 # Hooks {{{
 hook__path () { # <filepath> {{{
-  printf '%s' "${1}"
-  printf '%s' "${1}" | xclip -selection clipboard
+  printf '%s\n' "${1}"
+  printf '%s' "${1}" | wl-copy
 } # }}}
 
 hook__copy () { # <filepath> {{{
-  printf '%s' "${1}"
+  printf '%s\n' "${1}"
   xclip -selection clipboard -t image/png -i "${1}"
 } # }}}
 
 hook__save () { # <filepath> {{{
-  printf '%s' "${1}"
+  printf '%s\n' "${1}"
   mkdir -p "${SCREENSHOT_DIR}"
   cp "${1}" "${SCREENSHOT_DIR}"
 } # }}}
 
 hook__open () { # <command> <filepath> {{{
-  printf '%s' "${1}"
+  printf '%s\n' "${1}"
   ${1} "${2}" > /dev/null
 } # }}}
 
 hook__explore () { # <filepath> {{{
-  printf '%s' "${1}"
+  printf '%s\n' "${1}"
   dbus-send \
     --session \
     --print-reply \
@@ -357,7 +356,7 @@ hook__explore () { # <filepath> {{{
 } # }}}
 
 hook__xdg () { # <filepath> {{{
-  printf '%s' "${1}"
+  printf '%s\n' "${1}"
   xdg-open "${1}"
 } # }}}
 # }}}
@@ -382,7 +381,8 @@ main () { # -> int {{{
   for hook in "${HOOKS[@]}"; do
     declare -a hook_arr=(${hook})
     if declare -f -F "hook__${hook_arr[0]}" > /dev/null; then
-      declare -I filename="$(hook__${hook} "${filename:?Error: attempted to execute hook on a non-existent capture}")"
+      # FIXME a hooks should be silent
+      declare -I filename="$(hook__${hook} "${filename:?Error: attempted to execute hook on a non-existent capture}" | head -1)"
       notify-send -t 1500 "${SCRIPTNAME}" "Running hook ${hook}"
     else
       printf 'Undefined hook %s\n' "${hook}"
