@@ -4,6 +4,7 @@ set -o nounset
 set -o pipefail
 set -o posix
 
+# TODO # read -r X Y W H G ID < <(slop -f "%x %y %w %h %g %i")
 # TODO xclip to wl-clip
 # FIXME grim: command not found
 #  xclip: /tmp/capture-2023-11-02-19:22:45
