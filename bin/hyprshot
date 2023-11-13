@@ -10,7 +10,7 @@ set -o posix
 #  -pwVrKS.png: No such file or directory
 # TODO replace notifications instead of adding new ones
 # TODO allow default options
-# TODO Cursor
+# TODO Cursor - could also be an example of passthrough
 # TODO rofi
 # TODO stop recording automatically
 # TODO support Xorg
@@ -108,21 +108,22 @@ usage () { # {{{
 	${RESET}${C_GREEN}Usage:${RESET} ${SCRIPTNAME}  <${C_RED}options${RESET} [${C_YELLOW}argumments${RESET}]>  <${C_BLUE}command${RESET}>  <${C_BLUE}target${RESET}>
 	
 	${C_GREEN}Options:${RESET}
-	  -h, --help            Display usage menu.
-	  -t, --temp            Save the screenshot to /tmp instead of ${SCREENSHOT_DIR}
-	  -w, --wait     <${C_YELLOW}sec${RESET}>  Wait for the specified number of seconds before capturing.
-	  -d, --dir      <${C_YELLOW}dir${RESET}>  Path of screenshots directory.
-	  -f, --filename <${C_YELLOW}str${RESET}>  Filename-prefix of the screenshot. Use repeating X's to generate a random string.
-	  -o, --open     <${C_YELLOW}cmd${RESET}>  Open the screenshot with the specified program.
-	  -p, --path            Copy the file path to the clipboard.
-	  -c, --copy            Copy the file to the clipboard.
-	  -s, --save            Save the screenshot to ${SCREENSHOT_DIR} instead of /tmp
-	  -e, --explore         Reveal the screenshot in the file manager.
-	  -x, --xdg             Open the screenshot with the default image viewer.
-	  --debug               Shows execution trace.
-	  --simple              Disables colors in output.
-	  +${C_RED}...${RESET}                  A custom hook.
-	  --                    Stop parsing options, and pass the rest to the command.
+	  -h, --help                Display usage menu.
+	  -t, --temp                Save the screenshot to /tmp instead of ${SCREENSHOT_DIR}
+	  -i, --interactive         Interactively select a command and target with wofi.
+	  -w, --wait         <${C_YELLOW}sec${RESET}>  Wait for the specified number of seconds before capturing.
+	  -d, --dir          <${C_YELLOW}dir${RESET}>  Path of screenshots directory.
+	  -f, --filename     <${C_YELLOW}str${RESET}>  Filename-prefix of the screenshot. Use repeating X's to generate a random string.
+	  -o, --open         <${C_YELLOW}cmd${RESET}>  Open the screenshot with the specified program.
+	  -p, --path                Copy the file path to the clipboard.
+	  -c, --copy                Copy the file to the clipboard.
+	  -s, --save                Save the screenshot to ${SCREENSHOT_DIR} instead of /tmp
+	  -e, --explore             Reveal the screenshot in the file manager.
+	  -x, --xdg                 Open the screenshot with the default image viewer.
+	  --debug                   Shows execution trace.
+	  --simple                  Disables colors in output.
+	  +${C_RED}...${RESET}                      A custom hook. Can be defined in ~/$(realpath --relative-to="${HOME}" "${CONFIG}") as 'hook__${C_RED}...${RESET}() {}'
+	  --                        Stop parsing options, and pass the rest to the ${C_BLUE}command${RESET}.
 	
 	${C_GREEN}Commands:${RESET}
 	  ${C_BLUE}capture${RESET}               Capture a screenshot.
@@ -280,6 +281,9 @@ generate_temp () { # <filename> -> <filepath> {{{
 } # }}}
 
 # Selectors {{{
+# Selectors are defined as functions in the form `select__<name> () { ... }`.
+# Their job is to return a geometry specification in the form "X,Y WxH".
+
 select__active () { # {{{
   hyprctl -j activewindow | jq -r '"\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
 } # }}}
@@ -295,6 +299,9 @@ select__screen () { # {{{
 # }}}
 
 # Commands {{{
+# Commands are defined as functions in the form `cmd__<name> () { ... }`.
+# Their function is to capture the screenshot, and return the path of the capture.
+
 cmd__capture () { # <geospec> <**transient> -> <filename> {{{
   declare -r filename="$(generate_temp "${FILENAME_PREFIX}.png")"
   printf '%s' "${filename}"
@@ -320,6 +327,11 @@ cmd__gif () { # <geospec> <**transient> -> <filename> {{{
 # }}}
 
 # Hooks {{{
+# Hooks are defined as functions in $CONFIG in the form `hook__<name> () { ... }`.
+# They are executed after the screenshot is taken, and are passed the path of the screenshot.
+# They should only output the (updated) path of the screenshot, and nothing else.
+# Only the first line will be captured as the updated path.
+
 hook__path () { # <filepath> {{{
   printf '%s\n' "${1}"
   printf '%s' "${1}" | wl-copy
@@ -381,7 +393,6 @@ main () { # -> int {{{
   for hook in "${HOOKS[@]}"; do
     declare -a hook_arr=(${hook})
     if declare -f -F "hook__${hook_arr[0]}" > /dev/null; then
-      # FIXME a hooks should be silent
       declare -I filename="$(hook__${hook} "${filename:?Error: attempted to execute hook on a non-existent capture}" | head -1)"
       notify-send -t 1500 "${SCRIPTNAME}" "Running hook ${hook}"
     else
