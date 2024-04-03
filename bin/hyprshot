@@ -17,7 +17,6 @@ set -o posix
 #    pkill -fxn '(/\S+)*ffmpeg\s.*\sx11grab\s.*'
 #    exit 0
 #  fi
-# TODO support Xorg
 # TODO Exit on fail
 # https://github.com/hyprwm/contrib/blob/main/grimblast/grimblast
 
@@ -376,7 +375,7 @@ hook__path () { # <filepath> {{{
 
 hook__copy () { # <filepath> {{{
   printf '%s\n' "${1}"
-  xclip -selection clipboard -t image/png -i "${1}"
+  wl-copy < "${1}"
 } # }}}
 
 hook__save () { # <filepath> {{{
